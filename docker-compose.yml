@@ -40,7 +40,7 @@ services:
   # === 2. 목서버 (CODEF 대역) — 별도 레포 ===
   mock:
     build:
-      context: ../Financial-Mock-Server
+      context: ../tangtang-mock-my
       dockerfile: Dockerfile
     logging: *default-logging
     environment:
