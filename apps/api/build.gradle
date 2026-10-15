@@ -132,6 +132,11 @@ dependencies {
     }
     implementation "software.amazon.awssdk:url-connection-client:${awsSdkVersion}"
 
+    // micrometer 의존성 추가 (모니터링)
+    implementation 'io.micrometer:micrometer-core:1.17.1'
+    implementation 'io.micrometer:micrometer-registry-prometheus:1.17.1'
+
+
     // ---- Test ----
     implementation "org.springframework:spring-test:${springVersion}"
     testCompileOnly "org.projectlombok:lombok:${lombokVersion}"

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.tangtang.common.auth.JwtAuthInterceptor;
 import com.kb.tangtang.common.auth.LoginUserArgumentResolver;
 import com.kb.tangtang.common.docs.SwaggerAccessInterceptor;
+import com.kb.tangtang.common.monitoring.HttpMetricsInterceptor;
 import com.kb.tangtang.common.storage.ImageStorageProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -68,7 +69,9 @@ public class ServletConfig implements WebMvcConfigurer {
     @Autowired
     private LoginUserArgumentResolver loginUserArgumentResolver;
 
-    /** 배포 환경에서 Swagger 문서를 Basic 인증으로 가린다. 로컬은 그대로 통과한다. */
+    /**
+     * 배포 환경에서 Swagger 문서를 Basic 인증으로 가린다. 로컬은 그대로 통과한다.
+     */
     @Autowired
     private SwaggerAccessInterceptor swaggerAccessInterceptor;
 
@@ -79,9 +82,14 @@ public class ServletConfig implements WebMvcConfigurer {
     @Autowired
     private ImageStorageProperties imageStorageProperties;
 
-    /** RootConfig 의 ObjectMapper 빈(JavaTimeModule 등록됨) — JwtAuthInterceptor/GoogleOAuthClient 와 동일 설정을 공유한다. */
+    /**
+     * RootConfig 의 ObjectMapper 빈(JavaTimeModule 등록됨) — JwtAuthInterceptor/GoogleOAuthClient 와 동일 설정을 공유한다.
+     */
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private HttpMetricsInterceptor httpMetricsInterceptor;
 
     /*
      * @EnableWebMvc 의 기본 MappingJackson2HttpMessageConverter 는 Jackson2ObjectMapperBuilder 가
@@ -100,6 +108,11 @@ public class ServletConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(httpMetricsInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/notifications/stream");
+
+
         registry.addInterceptor(jwtAuthInterceptor)
                 .addPathPatterns("/api/**")
                 // 로그인 자체 경로와 헬스체크는 인증 없이 열어둔다

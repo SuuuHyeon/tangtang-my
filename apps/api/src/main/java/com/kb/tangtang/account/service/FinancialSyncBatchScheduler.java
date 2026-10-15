@@ -1,5 +1,8 @@
 package com.kb.tangtang.account.service;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,17 +43,32 @@ public class FinancialSyncBatchScheduler {
     /** 재동기화 쿨다운(분). 마지막 동기화 시도가 이보다 최근인 사용자는 이번 틱에서 뺀다(이슈 #199 최종 리뷰). */
     private final int minIntervalMinutes;
 
+    private final Timer batchTimer;
+    private final Counter syncSuccess;
+    private final Counter syncFailure;
+
     @Autowired
     public FinancialSyncBatchScheduler(ConnectedAccountMapper connectedAccountMapper,
                                        FinancialSyncService financialSyncService,
                                        @Value("${financial.sync.batch.enabled}") boolean enabled,
                                        @Value("${financial.sync.batch.max-users-per-tick}") int maxUsersPerTick,
-                                       @Value("${financial.sync.batch.min-interval-minutes}") int minIntervalMinutes) {
+                                       @Value("${financial.sync.batch.min-interval-minutes}") int minIntervalMinutes,
+                                       MeterRegistry meterRegistry) {
         this.connectedAccountMapper = connectedAccountMapper;
         this.financialSyncService = financialSyncService;
         this.enabled = enabled;
         this.maxUsersPerTick = maxUsersPerTick;
         this.minIntervalMinutes = minIntervalMinutes;
+        // 생성자 마지막 파라미터에 MeterRegistry meterRegistry 를 추가하고
+        this.batchTimer = Timer.builder("batch.execution")
+                .tag("batch", "financial-sync")
+                .register(meterRegistry);
+        this.syncSuccess = Counter.builder("batch.items")
+                .tag("batch", "financial-sync").tag("result", "success")
+                .register(meterRegistry);
+        this.syncFailure = Counter.builder("batch.items")
+                .tag("batch", "financial-sync").tag("result", "failure")
+                .register(meterRegistry);
     }
 
     @Scheduled(fixedDelayString = "${financial.sync.batch.fixed-delay-ms}")
@@ -58,13 +76,16 @@ public class FinancialSyncBatchScheduler {
         if (!enabled) {
             return;
         }
-        for (Long userId : connectedAccountMapper.findUserIdsDueForSync(minIntervalMinutes, maxUsersPerTick)) {
-            try {
-                financialSyncService.sync(userId);
-            } catch (Exception e) {
-                /* 한 사용자 때문에 배치 전체가 멈추면 안 된다 — sync() 내부에서 이미 실패 이력을 남겼다. */
-                log.error("배치 동기화 실패 userId={}", userId, e);
+        batchTimer.record(() -> {
+            for (Long userId : connectedAccountMapper.findUserIdsDueForSync(minIntervalMinutes, maxUsersPerTick)) {
+                try {
+                    financialSyncService.sync(userId);
+                    syncSuccess.increment();
+                } catch (Exception e) {
+                    syncFailure.increment();
+                    log.error("배치 동기화 실패 userId={}", userId, e);
+                }
             }
-        }
+        });
     }
 }

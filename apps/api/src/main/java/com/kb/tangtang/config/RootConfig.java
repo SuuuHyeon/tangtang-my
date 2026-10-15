@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.metrics.micrometer.MicrometerMetricsTrackerFactory;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
@@ -84,6 +86,8 @@ public class RootConfig {
 
     @Autowired
     ApplicationContext applicationContext;
+    @Autowired
+    MeterRegistry meterRegistry;
 
     @Bean
     public DataSource dataSource() {
@@ -118,6 +122,9 @@ public class RootConfig {
          *
          * 근거 없이 값을 바꾸지 말 것. 바꿀 일이 생기면 위와 같은 조건으로 다시 측정하고 정한다.
          */
+
+        config.setPoolName("tangtang-hikari");
+        config.setMetricsTrackerFactory(new MicrometerMetricsTrackerFactory(meterRegistry));
         return new HikariDataSource(config);
     }
 

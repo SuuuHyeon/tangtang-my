@@ -1,5 +1,7 @@
 package com.kb.tangtang.challenge.service;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -26,16 +28,23 @@ public class GroupChallengeEvaluationScheduler {
 
     private final GroupChallengeEvaluationBatchService batchService;
     private final ZoneId zoneId;
+    private final Timer evaluationTimer;
 
     public GroupChallengeEvaluationScheduler(
             GroupChallengeEvaluationBatchService batchService,
-            @Value("${challenge.group.evaluation.zone}") String zoneId) {
+            @Value("${challenge.group.evaluation.zone}") String zoneId,
+            MeterRegistry meterRegistry) {
+        this.evaluationTimer = Timer.builder("batch.execution")
+                .description("배치 1회 실행 시간")
+                .tag("batch", "group-challenge-evaluation")
+                .register(meterRegistry);
         this.batchService = batchService;
         this.zoneId = ZoneId.of(zoneId);
     }
 
     @Scheduled(fixedDelayString = "${challenge.group.evaluation.fixed-delay-ms}")
     public void evaluateActiveGroups() {
-        batchService.evaluateActiveGroups(LocalDate.now(zoneId));
+        evaluationTimer.record(() -> batchService.evaluateActiveGroups(LocalDate.now(zoneId)));
+
     }
 }
